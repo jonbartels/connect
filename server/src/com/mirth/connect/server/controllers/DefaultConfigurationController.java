@@ -358,7 +358,7 @@ public class DefaultConfigurationController extends ConfigurationController {
 
             statsUpdateInterval = NumberUtils.toInt(mirthConfig.getString(STATS_UPDATE_INTERVAL), DonkeyStatisticsUpdater.DEFAULT_UPDATE_INTERVAL);
 
-            if (Strings.isNullOrEmpty(mirthConfig.getString(CONFIGURATION_MAP_LOCATION)) || "file".equals(mirthConfig.getString(CONFIGURATION_MAP_LOCATION))) {
+            if ("file".equals(mirthConfig.getString(CONFIGURATION_MAP_LOCATION))) {
                 PropertiesConfiguration configurationMapProperties = PropertiesConfigurationUtil.create();
 
                 // Check for configuration map properties
@@ -830,7 +830,7 @@ public class DefaultConfigurationController extends ConfigurationController {
 
     protected void loadDatabaseConfigPropsIfNecessary() {
         try {
-            if (!configMapLoaded && "database".equals(mirthConfig.getString(CONFIGURATION_MAP_LOCATION))) {
+            if (!configMapLoaded && "database".equals(mirthConfig.getString(CONFIGURATION_MAP_LOCATION, "database"))) {
                 // load configurations from database
                 String configSerialized = getProperty(PROPERTIES_CORE, "configuration.properties");
                 configMapLoaded = true;
@@ -1527,7 +1527,7 @@ public class DefaultConfigurationController extends ConfigurationController {
 
     private void saveConfigurationProperties(Map<String, ConfigurationProperty> map) throws ControllerException {
         try {
-            if (Strings.isNullOrEmpty(mirthConfig.getString(CONFIGURATION_MAP_LOCATION)) || "file".equals(mirthConfig.getString(CONFIGURATION_MAP_LOCATION))) {
+            if ("file".equals(mirthConfig.getString(CONFIGURATION_MAP_LOCATION))) {
                 PropertiesConfiguration configurationMapProperties = PropertiesConfigurationUtil.create();
 
                 PropertiesConfigurationLayout layout = configurationMapProperties.getLayout();
