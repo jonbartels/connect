@@ -62,6 +62,7 @@ import org.apache.commons.configuration2.PropertiesConfigurationLayout;
 import org.apache.commons.configuration2.builder.FileBasedConfigurationBuilder;
 import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.apache.commons.dbutils.DbUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -404,7 +405,7 @@ public class DefaultConfigurationController extends ConfigurationController {
         } catch (Exception e) {
             logger.error("Failed to initialize configuration controller", e);
         } finally {
-            ResourceUtil.closeResourceQuietly(versionPropertiesStream);
+            IOUtils.closeQuietly(versionPropertiesStream);
         }
     }
 
@@ -1175,6 +1176,8 @@ public class DefaultConfigurationController extends ConfigurationController {
                 keyStore = KeyStore.getInstance(mirthConfig.getString("keystore.type", "JCEKS"));
             }
 
+            boolean dirtiedKeystore = false;
+
             if (keyStoreFile.exists()) {
                 keyStoreFileIs = new FileInputStream(keyStoreFile);
                 keyStore.load(keyStoreFileIs, keyStorePassword);
@@ -1197,20 +1200,24 @@ public class DefaultConfigurationController extends ConfigurationController {
                 }
 
                 keyStore.load(null, keyStorePassword);
+                dirtiedKeystore = true;
                 logger.debug("keystore file not found, created new one");
             }
 
-            configureEncryption(provider, keyStore, keyPassword);
-            generateDefaultCertificate(provider, keyStore, keyPassword);
+            dirtiedKeystore = dirtiedKeystore || configureEncryption(provider, keyStore, keyPassword);
+            dirtiedKeystore = dirtiedKeystore || generateDefaultCertificate(provider, keyStore, keyPassword);
 
             // write the keystore back to the file
-            fos = new FileOutputStream(keyStoreFile);
-            keyStore.store(fos, keyStorePassword);
+            // only re-write the keystore if Mirth actually changed it
+            if(dirtiedKeystore) {
+                fos = new FileOutputStream(keyStoreFile);
+                keyStore.store(fos, keyStorePassword);
+            }
         } catch (Exception e) {
             logger.error("Could not initialize security settings.", e);
         } finally {
-            ResourceUtil.closeResourceQuietly(keyStoreFileIs);
-            ResourceUtil.closeResourceQuietly(fos);
+            IOUtils.closeQuietly(keyStoreFileIs);
+            IOUtils.closeQuietly(fos);
         }
     }
 
@@ -1293,7 +1300,7 @@ public class DefaultConfigurationController extends ConfigurationController {
         try {
             PropertiesConfigurationUtil.saveTo(mirthConfig, os);
         } finally {
-            ResourceUtil.closeResourceQuietly(os);
+            IOUtils.closeQuietly(os);
         }
     }
 
@@ -1374,8 +1381,8 @@ public class DefaultConfigurationController extends ConfigurationController {
         } catch (Exception e) {
             logger.error("Error migrating encryption key from database to keystore.", e);
         } finally {
-            ResourceUtil.closeResourceQuietly(mirthPropsIs);
-            ResourceUtil.closeResourceQuietly(keyStoreOuputStream);
+            IOUtils.closeQuietly(mirthPropsIs);
+            IOUtils.closeQuietly(keyStoreOuputStream);
         }
     }
 
@@ -1387,17 +1394,15 @@ public class DefaultConfigurationController extends ConfigurationController {
     /**
      * Instantiates the encryptor and digester using the configuration properties. If the properties
      * are not found, reasonable defaults are used.
-     * 
-     * @param provider
-     *            The provider to use (ex. BC)
-     * @param keyStore
-     *            The keystore from which to load the secret encryption key
-     * @param keyPassword
-     *            The secret key password
+     *
+     * @param provider    The provider to use (ex. BC)
+     * @param keyStore    The keystore from which to load the secret encryption key
+     * @param keyPassword The secret key password
      * @throws Exception
      */
-    private void configureEncryption(Provider provider, KeyStore keyStore, char[] keyPassword) throws Exception {
+    private boolean configureEncryption(Provider provider, KeyStore keyStore, char[] keyPassword) throws Exception {
         SecretKey secretKey = null;
+        boolean dirtiedKeystore = false;
 
         if (!keyStore.containsAlias(SECRET_KEY_ALIAS)) {
             logger.debug("encryption key not found, generating new one");
@@ -1406,6 +1411,7 @@ public class DefaultConfigurationController extends ConfigurationController {
             secretKey = keyGenerator.generateKey();
             KeyStore.SecretKeyEntry entry = new KeyStore.SecretKeyEntry(secretKey);
             keyStore.setEntry(SECRET_KEY_ALIAS, entry, new KeyStore.PasswordProtection(keyPassword));
+            dirtiedKeystore = true;
         } else {
             logger.debug("found encryption key in keystore");
             secretKey = (SecretKey) keyStore.getKey(SECRET_KEY_ALIAS, keyPassword);
@@ -1439,6 +1445,8 @@ public class DefaultConfigurationController extends ConfigurationController {
                 + "Please see the Security Best Practices -> Encryption Settings section of the User Guide for more information.");
             // @formatter:on
         }
+
+        return dirtiedKeystore;
     }
 
     /**
@@ -1446,8 +1454,9 @@ public class DefaultConfigurationController extends ConfigurationController {
      * client. If no certficate exists, this will generate a new one.
      * 
      */
-    private void generateDefaultCertificate(Provider provider, KeyStore keyStore, char[] keyPassword) throws Exception {
+    private boolean generateDefaultCertificate(Provider provider, KeyStore keyStore, char[] keyPassword) throws Exception {
         final String certificateAlias = "mirthconnect";
+        boolean dirtiedKeystore = false;
 
         if (!keyStore.containsAlias(certificateAlias)) {
             // Common CA and SSL cert attributes
@@ -1485,9 +1494,12 @@ public class DefaultConfigurationController extends ConfigurationController {
             // add the generated SSL cert to the keystore using the key password
             keyStore.setKeyEntry(certificateAlias, sslKeyPair.getPrivate(), keyPassword, new Certificate[] {
                     sslCert });
+            dirtiedKeystore = true;
         } else {
             logger.debug("found certificate in keystore");
         }
+
+        return dirtiedKeystore;
     }
 
     private boolean isDatabaseRunning() {
