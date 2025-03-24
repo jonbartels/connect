@@ -1,0 +1,13 @@
+----------------------------------------------------------------
+Wed Aug 17 17:22:51 EDT 2022:
+Booting Derby version The Apache Software Foundation - Apache Derby - 10.10.2.0 - (1582446): instance a816c00e-0182-adb0-08fa-00000d1a54b0 
+on database directory /Users/jonathan.bartels/Projects/connect/MapUtilTestDB with class loader sun.misc.Launcher$AppClassLoader@18b4aac2 
+Loaded from file:/Users/jonathan.bartels/Projects/connect/server/lib/database/derby-10.10.2.0.jar
+java.vendor=Azul Systems, Inc.
+java.runtime.version=1.8.0_332-b09
+user.dir=/Users/jonathan.bartels/Projects/connect
+os.name=Mac OS X
+os.arch=aarch64
+os.version=12.5
+derby.system.home=null
+Database Class Loader started - derby.database.classpath=''
